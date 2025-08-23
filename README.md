@@ -3,7 +3,7 @@
 ## Integrantes
 - Ariel Sánchez Torres - 2024093412
 - Keylor Solano Vega - 2024082928
-- Compañero 2 
+- Amanda Montero Zúñiga - 2021579522
 - Compañero 3 
 
 ## Descripción
