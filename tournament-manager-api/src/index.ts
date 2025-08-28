@@ -70,10 +70,21 @@ app.get("/", (req, res) => {
 });
 
 app.post("/registrar", async (req, res) => {
-  const data = req.body;
-  console.log("Data received:", data);
-  await Tournament.insertMany(req.body);
-  res.status(201).json({ message: `Inserted ${req.body.length} tournaments!` });
+  try{
+    const data = req.body;
+
+    console.log("Datos Recibidos:", data);
+
+    // Insertar en la colección "tournaments" de la base de datos
+    await Tournament.insertMany(req.body);
+
+    res.status(201).json({ message: `Se insertaron ${req.body.length} torneos!` });
+  }
+  catch(error){
+    console.error("Error al insertar torneos:", error);
+    res.status(500).json({ message: "Error al insertar torneos" });
+  }
+  
 });
 
 app.listen(PORT, () => {
