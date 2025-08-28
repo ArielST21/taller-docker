@@ -84,7 +84,6 @@ app.post("/registrar", async (req, res) => {
     console.error("Error al insertar torneos:", error);
     res.status(500).json({ message: "Error al insertar torneos" });
   }
-  
 });
 
 app.listen(PORT, () => {
