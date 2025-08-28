@@ -69,6 +69,13 @@ app.get("/", (req, res) => {
   res.json({ message: "Tournament Designer API is running!" });
 });
 
+app.post("/registrar", async (req, res) => {
+  const data = req.body;
+  console.log("Data received:", data);
+  await Tournament.insertMany(req.body);
+  res.status(201).json({ message: `Inserted ${req.body.length} tournaments!` });
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
