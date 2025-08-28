@@ -1,0 +1,14 @@
+version: "3.9"
+
+services:
+  job:
+    build: .
+    container_name: kafka-job
+    depends_on:
+      - kafka
+    networks:
+      - internal_net
+
+networks:
+  internal_net:
+    external: true
