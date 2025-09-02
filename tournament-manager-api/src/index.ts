@@ -1,9 +1,27 @@
 import express from "express";
 import mongoose, { model, Schema } from "mongoose";
+import { Kafka } from "kafkajs";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/tournament_designer';
+
+const kafka = new Kafka({
+  clientId: 'tournament-designer',
+  brokers: [process.env.KAFKA_BROKER || 'kafka:9092'] // Usa variable de entorno para flexibilidad
+});
+
+const producer = kafka.producer();
+
+
+async function sendToKafka(topic: string, message: any) {
+  await producer.connect();
+  await producer.send({
+    topic,
+    messages: [{ value: JSON.stringify(message) }],
+  });
+  await producer.disconnect();
+}
 
 app.use(express.json());
 
@@ -32,6 +50,11 @@ mongoose
   .connect(MONGO_URI)
   .then(() => console.log("✅ Conectado a MongoDB"))
   .catch((err) => console.error("❌ Error conectando a MongoDB:", err));
+
+// Conexión a Kafka
+producer.connect()
+  .then(() => console.log("✅ Conectado a Kafka"))
+  .catch((err) => console.error("❌ Error conectando a Kafka:", err));
 
 
 const tournamentSchema = new Schema(
@@ -78,7 +101,10 @@ app.post("/registrar", async (req, res) => {
     // Insertar en la colección "tournaments" de la base de datos
     await Tournament.insertMany(req.body);
 
-    res.status(201).json({ message: `Se insertaron ${req.body.length} torneos!` });
+    // Enviar a Kafka
+    await sendToKafka('tournament-registrations', req.body);
+
+    res.status(201).json({ message: `Se insertaron ${req.body.length} torneos y se encoló en Kafka!` });
   }
   catch(error){
     console.error("Error al insertar torneos:", error);
