@@ -1,5 +1,8 @@
 {
   "dependencies": {
-    "kafkajs": "^2.2.4"
+    "dotenv": "^17.2.2",
+    "env": "^0.0.2",
+    "kafkajs": "^2.2.4",
+    "typescript": "^5.9.2"
   }
 }

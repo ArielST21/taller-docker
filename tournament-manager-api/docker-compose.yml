@@ -9,14 +9,29 @@ services:
     networks:
       - internal_net
     environment:
-      - PORT=3000
       - MONGO_URI=mongodb://mongo:27017/tournament_designer
+      - KAFKA_BROKER=kafka:9092
+    volumes:
+      - .:/app
+      - /app/node_modules   # evita que tu node_modules de host sobrescriba el del contenedor
+    depends_on:
+      - mongo
+      - kafka
+    command: npm run dev
+
+  job:
+    build: .
+    container_name: job-consumer
+    networks:
+      - internal_net
+    environment:
+      - KAFKA_BROKER=kafka:9092
     volumes:
       - .:/app
       - /app/node_modules
     depends_on:
-      - mongo
-    command: npm run dev
+      - kafka
+    command: npm run job
 
   mongo:
     image: mongo:6.0

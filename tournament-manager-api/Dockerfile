@@ -1,23 +1,17 @@
-# Etapa de build
-FROM node:18-alpine AS builder
+FROM node:18-alpine
 
+# Crear directorio de trabajo
 WORKDIR /app
 
+# Instalar dependencias primero
 COPY package*.json ./
 RUN npm install
 
+# Copiar el resto del código
 COPY . .
-RUN npm run build
 
-# Etapa final
-FROM node:18-alpine
-
-WORKDIR /app
-
-COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/dist ./dist
-
+# Exponer puerto de la API
 EXPOSE 3000
 
-CMD ["node", "dist/index.js"]
+# Comando por defecto (lo sobreescribe docker-compose)
+CMD ["npm", "run", "dev"]

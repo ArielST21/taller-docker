@@ -1,62 +1,49 @@
 import express from "express";
 import mongoose, { model, Schema } from "mongoose";
+import { MongoClient } from "mongodb";
 import { Kafka } from "kafkajs";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/tournament_designer';
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://mongo:27017/tournament_designer';
 
 const kafka = new Kafka({
   clientId: 'tournament-designer',
-  brokers: [process.env.KAFKA_BROKER || 'kafka:9092'] // Usa variable de entorno para flexibilidad
+  brokers: [process.env.KAFKA_BROKER || 'kafka:9092']
 });
-
 const producer = kafka.producer();
 
+// Conexión con MongoClient para el endpoint /registrar
+const client = new MongoClient(MONGO_URI);
+let torneosCollection: any;
 
-async function sendToKafka(topic: string, message: any) {
+async function conectarMongoYKafka() {
+  await client.connect();
+  const db = client.db();
+  torneosCollection = db.collection('torneos');
   await producer.connect();
-  await producer.send({
-    topic,
-    messages: [{ value: JSON.stringify(message) }],
-  });
-  await producer.disconnect();
+  console.log("✅ Conectado a MongoDB (MongoClient) y Kafka (Producer)");
 }
+conectarMongoYKafka().catch(console.error);
 
 app.use(express.json());
-
 app.use(express.urlencoded({ extended: true }));
 
 app.use(function (req, res, next) {
-
-    // Website you wish to allow to connect
-    res.setHeader('Access-Control-Allow-Origin', '*');
-
-    // Request methods you wish to allow
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
-
-    // Request headers you wish to allow
-    res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,content-type,Authorization');
-
-    // Set to true if you need the website to include cookies in the requests sent
-    // to the API (e.g. in case you use sessions)
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-
-    // Pass to next layer of middleware
-    next();
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
+  res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,content-type,Authorization');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  next();
 });
 
+// Conexión a MongoDB con Mongoose para los otros endpoints
 mongoose
   .connect(MONGO_URI)
-  .then(() => console.log("✅ Conectado a MongoDB"))
-  .catch((err) => console.error("❌ Error conectando a MongoDB:", err));
+  .then(() => console.log("✅ Conectado a MongoDB (Mongoose)"))
+  .catch((err) => console.error("❌ Error conectando a MongoDB (Mongoose):", err));
 
-// Conexión a Kafka
-producer.connect()
-  .then(() => console.log("✅ Conectado a Kafka"))
-  .catch((err) => console.error("❌ Error conectando a Kafka:", err));
-
-
+// Esquema y modelo para los endpoints originales
 const tournamentSchema = new Schema(
   {
     title: { type: String, required: true },
@@ -73,10 +60,8 @@ const tournamentSchema = new Schema(
 
 const Tournament = model("Tournament", tournamentSchema);
 
-
 app.post('/upload-data', async (req, res) => {
   const data = req.body;
-  // Here you would handle the data upload logic
   console.log("Data received:", data);
 
   await Tournament.insertMany(req.body);
@@ -92,23 +77,35 @@ app.get("/", (req, res) => {
   res.json({ message: "Tournament Designer API is running!" });
 });
 
+// Endpoint /registrar usando MongoClient y Kafka Producer
 app.post("/registrar", async (req, res) => {
-  try{
-    const data = req.body;
+  try {
+    const registros = req.body;
 
-    console.log("Datos Recibidos:", data);
+    console.log("Registros recibidos:", registros);
 
-    // Insertar en la colección "tournaments" de la base de datos
-    await Tournament.insertMany(req.body);
+    if (!Array.isArray(registros) || registros.length === 0) {
+      return res.status(400).json({ error: "El cuerpo de la petición debe ser un array de torneos." });
+    }
 
-    // Enviar a Kafka
-    await sendToKafka('tournament-registrations', req.body);
+    // Insertar todos en la misma colección que usa Mongoose (tournaments)
+    const result = await Tournament.insertMany(registros);
 
-    res.status(201).json({ message: `Se insertaron ${req.body.length} torneos y se encoló en Kafka!` });
-  }
-  catch(error){
-    console.error("Error al insertar torneos:", error);
-    res.status(500).json({ message: "Error al insertar torneos" });
+    // Enviar cada registro a Kafka
+    for (const registro of registros) {
+      await producer.send({
+        topic: "tournament-manager",
+        messages: [{ value: JSON.stringify(registro) }],
+      });
+    }
+
+    res.status(201).json({
+      mensaje: `Se insertaron ${result.length} torneos y fueron encolados en Kafka`,
+      idsInsertados: result.map(r => r._id),
+    });
+  } catch (err: any) {
+    console.error("Error al insertar torneos:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 
